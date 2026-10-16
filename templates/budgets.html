@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block subheading %}Set monthly limits — progress updates live as you spend{% endblock %}
+{% block content %}
+<div class="grid g3">
+  {% for b in s.budgets %}
+  <div class="card hover fade-up">
+    <div class="row between"><div class="row"><div class="dot-ico" style="background:{{ CATS[b.category][1] }}22;color:{{ CATS[b.category][1] }}"><i class="bi {{ CATS[b.category][0] }}"></i></div>
+      <div><b>{{ b.category }}</b><div class="muted small">₹{{ '{:,.0f}'.format(b.spent) }} of ₹{{ '{:,.0f}'.format(b.monthly_limit) }}</div></div></div>
+      <span class="badge {{ 'danger' if b.pct >= 100 else ('warning' if b.pct >= 80 else 'success') }}">{{ b.pct }}%</span></div>
+    <div class="progress mt"><span data-w="{{ [b.pct,100]|min }}" style="{{ 'background:linear-gradient(90deg,#FF5470,#d6336c)' if b.pct >= 100 }}"></span></div>
+    <div class="small muted mt">{% if b.pct >= 100 %}⚠️ Over budget by ₹{{ '{:,.0f}'.format(b.spent - b.monthly_limit) }}{% else %}₹{{ '{:,.0f}'.format(b.monthly_limit - b.spent) }} left this month{% endif %}</div>
+  </div>
+  {% endfor %}
+</div>
+<form class="card mt fade-up" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <h3><i class="bi bi-sliders"></i> Edit monthly budgets <span class="act muted small">Leave empty to remove</span></h3>
+  <div class="grid g4">
+    {% for c, v in CATS.items() if c not in INCOME %}
+    <div class="field"><label><i class="bi {{ v[0] }}" style="color:{{ v[1] }}"></i> {{ c }}</label>
+      <input class="input" type="number" min="0" step="100" name="{{ c }}" value="{{ current[c].monthly_limit|int if c in current }}" placeholder="No limit"></div>
+    {% endfor %}
+  </div>
+  <button class="btn btn-primary"><i class="bi bi-check2-circle"></i> Save budgets</button>
+</form>
+{% endblock %}

@@ -1,0 +1,18 @@
+<div class="modal" id="addModal">
+  <div class="box">
+    <h3>Add transaction <button class="icon-btn" data-close><i class="bi bi-x-lg"></i></button></h3>
+    <form id="addForm">
+      <div class="field"><label>Description</label>
+        <div class="input-icon"><i class="bi bi-pencil"></i><input class="input" id="fDesc" required placeholder="e.g. Swiggy order, Uber ride, Salary credited" autocomplete="off"></div></div>
+      <div class="field"><label><i class="bi bi-robot"></i> AI category suggestion <span class="live" id="aiLive" style="display:none">thinking</span></label>
+        <div class="row" id="aiChips"><span class="muted small">Start typing a description…</span></div></div>
+      <div class="grid g2">
+        <div class="field"><label>Amount (₹)</label><input class="input" id="fAmt" type="number" min="1" step="0.01" required placeholder="0.00"></div>
+        <div class="field"><label>Date</label><input class="input" id="fDate" type="date"></div>
+      </div>
+      <div class="field"><label>Category (override)</label><select id="fCat"><option value="">Use AI suggestion</option>
+        {% for c in CATS %}<option>{{ c }}</option>{% endfor %}</select></div>
+      <button class="btn btn-primary btn-block"><i class="bi bi-plus-circle"></i> Save transaction</button>
+    </form>
+  </div>
+</div>

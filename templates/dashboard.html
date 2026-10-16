@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block topbar_extra %}<button class="btn btn-primary btn-sm" data-modal="addModal"><i class="bi bi-plus-lg"></i> Add transaction</button>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  <div class="card hover glow fade-up"><div class="stat"><div class="ico"><i class="bi bi-wallet2"></i></div>
+    <div><div class="lbl">Total balance</div><div class="val" data-count="{{ s.balance|round(0) }}" data-prefix="₹">0</div></div></div></div>
+  <div class="card hover fade-up"><div class="stat"><div class="ico c5"><i class="bi bi-arrow-down-left"></i></div>
+    <div><div class="lbl">Income this month</div><div class="val" data-count="{{ s.income|round(0) }}" data-prefix="₹">0</div>
+    <span class="delta {{ 'up' if s.inc_delta >= 0 else 'down' }}">{{ '%+.1f'|format(s.inc_delta) }}%</span></div></div></div>
+  <div class="card hover fade-up"><div class="stat"><div class="ico c2"><i class="bi bi-arrow-up-right"></i></div>
+    <div><div class="lbl">Expenses this month</div><div class="val" data-count="{{ s.expense|round(0) }}" data-prefix="₹">0</div>
+    <span class="delta {{ 'down' if s.exp_delta > 0 else 'up' }}">{{ '%+.1f'|format(s.exp_delta) }}%</span></div></div></div>
+  <div class="card hover fade-up"><div class="stat"><div class="ico c3"><i class="bi bi-piggy-bank"></i></div>
+    <div><div class="lbl">Savings rate</div><div class="val" data-count="{{ s.savings_rate }}" data-suffix="%">0</div>
+    <span class="small muted">Forecast next month: <b>₹{{ '{:,.0f}'.format(s.forecast or 0) }}</b></span></div></div></div>
+</div>
+
+<div class="grid g-2-1 mt">
+  <div class="card fade-up"><h3><i class="bi bi-activity"></i> Cash flow — last 6 months <span class="act live">Live</span></h3>
+    <div style="height:290px"><canvas id="trend"></canvas></div></div>
+  <div class="card fade-up"><h3><i class="bi bi-pie-chart"></i> Spending by category</h3>
+    <div style="height:290px"><canvas id="cats"></canvas></div></div>
+</div>
+
+<div class="grid g3 mt">
+  <div class="card fade-up"><h3><i class="bi bi-bullseye"></i> Budget health <a class="act small gradient-text" href="{{ url_for('budgets') }}">Manage</a></h3>
+    {% for b in s.budgets[:5] %}
+    <div class="mb"><div class="row between small"><span><i class="bi {{ CATS[b.category][0] }}" style="color:{{ CATS[b.category][1] }}"></i> {{ b.category }}</span>
+      <span class="{{ 'gradient-text' if b.pct < 80 }}" style="{{ 'color:var(--danger)' if b.pct >= 100 else ('color:var(--warning)' if b.pct >= 80 else '') }}">₹{{ '{:,.0f}'.format(b.spent) }} / {{ '{:,.0f}'.format(b.monthly_limit) }}</span></div>
+      <div class="progress mt" style="margin-top:6px"><span data-w="{{ [b.pct,100]|min }}" style="{{ 'background:linear-gradient(90deg,#FF5470,#d6336c)' if b.pct >= 100 }}"></span></div></div>
+    {% else %}<div class="empty"><i class="bi bi-bullseye"></i>No budgets yet</div>{% endfor %}
+  </div>
+  <div class="card fade-up"><h3><i class="bi bi-exclamation-diamond"></i> AI anomaly alerts</h3>
+    {% for a in s.anomalies %}
+    <div class="list-item"><div class="dot-ico" style="background:color-mix(in srgb,var(--danger) 18%,transparent);color:var(--danger)"><i class="bi bi-lightning"></i></div>
+      <div style="flex:1"><b class="small">{{ a.description }}</b><div class="muted small">₹{{ '{:,.0f}'.format(a.amount) }} vs avg ₹{{ '{:,.0f}'.format(a.avg) }} · {{ a.z }}σ</div></div>
+      <span class="badge danger">Unusual</span></div>
+    {% else %}<div class="empty"><i class="bi bi-shield-check"></i>No unusual spending detected 🎉</div>{% endfor %}
+  </div>
+  <div class="card fade-up"><h3><i class="bi bi-clock-history"></i> Recent <a class="act small gradient-text" href="{{ url_for('transactions') }}">View all</a></h3>
+    {% for t in s.recent %}
+    <div class="list-item" style="padding:8px"><div class="dot-ico" style="background:{{ CATS[t.category][1] }}22;color:{{ CATS[t.category][1] }}"><i class="bi {{ CATS[t.category][0] }}"></i></div>
+      <div style="flex:1;min-width:0"><b class="small">{{ t.description }}</b><div class="muted small">{{ t.category }} · {{ t.date }}</div></div>
+      <b class="small" style="color:{{ 'var(--success)' if t.kind == 'income' else 'var(--text)' }}">{{ '+' if t.kind == 'income' else '−' }}₹{{ '{:,.0f}'.format(t.amount) }}</b></div>
+    {% endfor %}
+  </div>
+</div>
+{% include "_add_modal.html" %}
+{% endblock %}
+{% block scripts %}
+{% include "_add_script.html" %}
+<script>
+const T = {{ s.trend|tojson }}, C = {{ s.cats|tojson }}, CAT = {{ CATS|tojson }};
+let charts = [];
+function draw(){
+  charts.forEach(c=>c.destroy()); applyChartDefaults(); const c = chartColors();
+  const ctx = document.getElementById('trend').getContext('2d');
+  charts.push(new Chart(ctx,{type:'line',data:{labels:T.labels,datasets:[
+    {label:'Income',data:T.income,borderColor:c.a2,backgroundColor:gradientFill(ctx,c.a2),fill:true,tension:.45,borderWidth:3,pointRadius:4},
+    {label:'Expense',data:T.expense,borderColor:c.a1,backgroundColor:gradientFill(ctx,c.a1),fill:true,tension:.45,borderWidth:3,pointRadius:4}]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{y:{ticks:{callback:v=>'₹'+v/1000+'k'}}}}}));
+  charts.push(new Chart(document.getElementById('cats'),{type:'doughnut',data:{labels:Object.keys(C),datasets:[{data:Object.values(C),
+    backgroundColor:Object.keys(C).map(k=>CAT[k][1]),borderWidth:0,hoverOffset:14}]},options:{maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{boxWidth:8,font:{size:11}}}}}}));
+}
+draw(); addEventListener('themechange', draw);
+</script>
+{% endblock %}

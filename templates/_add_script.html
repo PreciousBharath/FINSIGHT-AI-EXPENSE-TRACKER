@@ -1,0 +1,31 @@
+<script>
+(() => {
+  const d = document.getElementById('fDate'); if (!d) return;
+  d.valueAsDate = new Date();
+  let timer, chosen = null;
+  const chips = document.getElementById('aiChips'), live = document.getElementById('aiLive');
+  document.getElementById('fDesc').addEventListener('input', e => {
+    clearTimeout(timer); live.style.display = 'inline-flex';
+    timer = setTimeout(async () => {
+      const r = await api('/api/predict?text=' + encodeURIComponent(e.target.value)); live.style.display = 'none';
+      if (!r.predictions.length) { chips.innerHTML = '<span class="muted small">Start typing a description…</span>'; chosen = null; return; }
+      chosen = r.predictions[0];
+      chips.innerHTML = r.predictions.map((p, i) => `<span class="chip pop ${i ? '' : 'active'}" data-cat="${esc(p.category)}" data-conf="${p.confidence}">
+        <i class="bi ${p.icon}" style="color:${p.color}"></i>${esc(p.category)} <b>${Math.round(p.confidence * 100)}%</b></span>`).join('');
+    }, 220);
+  });
+  chips.addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return;
+    chips.querySelectorAll('.chip').forEach(x => x.classList.remove('active')); c.classList.add('active');
+    chosen = { category: c.dataset.cat, confidence: +c.dataset.conf }; });
+  document.getElementById('addForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const override = document.getElementById('fCat').value;
+    const t = await api('/api/transactions', { body: { description: fDesc.value, amount: fAmt.value, date: fDate.value,
+      category: override || chosen?.category, confidence: override ? null : chosen?.confidence } });
+    toast(`Saved “${t.description}” as ${t.category}`, 'success');
+    document.getElementById('addModal').classList.remove('open'); e.target.reset(); d.valueAsDate = new Date();
+    chips.innerHTML = '<span class="muted small">Start typing a description…</span>';
+    if (window.onTxAdded) window.onTxAdded(t); else setTimeout(() => location.reload(), 600);
+  });
+})();
+</script>

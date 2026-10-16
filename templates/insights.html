@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block subheading %}Patterns the AI found in your spending{% endblock %}
+{% block content %}
+<div class="grid g3">
+  <div class="card glow fade-up"><h3><i class="bi bi-magic"></i> Forecast</h3>
+    <div class="val" style="font-size:34px;font-weight:700" data-count="{{ (s.forecast or 0)|round(0) }}" data-prefix="₹">0</div>
+    <p class="muted small">Predicted spend next month (linear trend over recent months).</p></div>
+  <div class="card fade-up"><h3><i class="bi bi-trophy"></i> Biggest category</h3>
+    {% set topcat = s.cats|list %}<div class="val" style="font-size:26px;font-weight:700">{{ topcat[0] if topcat else '—' }}</div>
+    <p class="muted small">{% if topcat %}₹{{ '{:,.0f}'.format(s.cats[topcat[0]]) }} this month — {{ (100*s.cats[topcat[0]]/(s.expense or 1))|round(1) }}% of spending{% endif %}</p></div>
+  <div class="card fade-up"><h3><i class="bi bi-piggy-bank"></i> Savings potential</h3>
+    <div class="val" style="font-size:34px;font-weight:700" data-count="{{ (s.expense*0.12)|round(0) }}" data-prefix="₹">0</div>
+    <p class="muted small">Trimming discretionary categories by 12% would save this every month.</p></div>
+</div>
+<div class="grid g2 mt">
+  <div class="card fade-up"><h3><i class="bi bi-calendar-week"></i> Spending by weekday</h3><div style="height:280px"><canvas id="dow"></canvas></div></div>
+  <div class="card fade-up"><h3><i class="bi bi-list-ol"></i> Top merchants / descriptions</h3>
+    <table class="table"><thead><tr><th>Description</th><th>Times</th><th class="right">Total</th></tr></thead><tbody>
+    {% for t in top %}<tr><td><b>{{ t.description }}</b></td><td>{{ t.n }}</td><td class="right">₹{{ '{:,.0f}'.format(t.total) }}</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const D = {{ dow|tojson }}; let ch;
+function draw(){ ch && ch.destroy(); applyChartDefaults(); const c = chartColors();
+  ch = new Chart(document.getElementById('dow'),{type:'bar',data:{labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],datasets:[{label:'Spend',data:D,
+   backgroundColor:D.map((_,i)=>i>=5?c.a2:c.a1),borderRadius:10}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}}}}); }
+draw(); addEventListener('themechange', draw);
+</script>
+{% endblock %}

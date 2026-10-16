@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block subheading %}Search, filter, re-categorise (the AI learns) · import & export CSV{% endblock %}
+{% block topbar_extra %}
+<a class="btn btn-ghost btn-sm" href="{{ url_for('api_export') }}"><i class="bi bi-download"></i> Export</a>
+<label class="btn btn-ghost btn-sm" style="margin:0;color:var(--text)"><i class="bi bi-upload"></i> Import<input type="file" id="importFile" accept=".csv" hidden></label>
+<button class="btn btn-primary btn-sm" data-modal="addModal"><i class="bi bi-plus-lg"></i> Add</button>
+{% endblock %}
+{% block content %}
+<div class="card fade-up">
+  <div class="row between mb">
+    <div class="row" id="catChips"><span class="chip active" data-cat="">All</span>
+      {% for c, v in CATS.items() %}<span class="chip" data-cat="{{ c }}"><i class="bi {{ v[0] }}" style="color:{{ v[1] }}"></i>{{ c }}</span>{% endfor %}</div>
+  </div>
+  <div class="row between mb"><div class="search" style="min-width:300px"><i class="bi bi-search muted"></i><input id="q" placeholder="Filter by description…"></div>
+    <div class="row small muted"><span id="countLbl">—</span> · Total out <b id="totOut" style="color:var(--text)">—</b> · in <b id="totIn" style="color:var(--success)">—</b></div></div>
+  <div style="overflow:auto"><table class="table"><thead><tr><th>Date</th><th>Description</th><th>Category (click to change)</th><th>AI conf.</th><th class="right">Amount</th><th></th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6"><div class="skeleton" style="height:120px"></div></td></tr></tbody></table></div>
+</div>
+{% include "_add_modal.html" %}
+{% endblock %}
+{% block scripts %}
+{% include "_add_script.html" %}
+<script>
+const CAT = {{ CATS|tojson }}; let cat = '', q = '';
+const fmt = n => '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+const opts = Object.keys(CAT).map(c => `<option>${c}</option>`).join('');
+async function load() {
+  const rows = await api(`/api/transactions?q=${encodeURIComponent(q)}&category=${encodeURIComponent(cat)}`);
+  const out = rows.filter(r => r.kind === 'expense').reduce((a, r) => a + r.amount, 0), inn = rows.filter(r => r.kind === 'income').reduce((a, r) => a + r.amount, 0);
+  countLbl.textContent = rows.length + ' transactions'; totOut.textContent = fmt(out); totIn.textContent = fmt(inn);
+  document.getElementById('rows').innerHTML = rows.length ? rows.map((r, i) => `<tr class="fade-up" style="animation-delay:${Math.min(i, 15) * 30}ms" data-id="${r.id}">
+    <td class="muted small">${r.date}</td><td><b>${esc(r.description)}</b></td>
+    <td><span class="dot-ico" style="width:30px;height:30px;font-size:14px;display:inline-grid;vertical-align:middle;background:${CAT[r.category][1]}22;color:${CAT[r.category][1]}"><i class="bi ${CAT[r.category][0]}"></i></span>
+      <select class="catSel" style="width:auto;display:inline-block;padding:6px 10px;margin-left:6px">${opts.replace(`<option>${r.category}</option>`, `<option selected>${r.category}</option>`)}</select></td>
+    <td>${r.ai_confidence ? `<span class="badge ${r.ai_confidence > .85 ? 'success' : 'warning'}"><i class="bi bi-robot"></i>${Math.round(r.ai_confidence * 100)}%</span>` : '<span class="muted small">manual</span>'}</td>
+    <td class="right"><b style="color:${r.kind === 'income' ? 'var(--success)' : 'var(--text)'}">${r.kind === 'income' ? '+' : '−'}${fmt(r.amount)}</b></td>
+    <td><button class="icon-btn del" style="width:34px;height:34px;font-size:14px" title="Delete"><i class="bi bi-trash"></i></button></td></tr>`).join('')
+    : `<tr><td colspan="6"><div class="empty"><i class="bi bi-inbox"></i>No transactions match</div></td></tr>`;
+}
+document.getElementById('rows').addEventListener('change', async e => {
+  if (!e.target.classList.contains('catSel')) return;
+  const id = e.target.closest('tr').dataset.id, r = await api('/api/transactions/' + id, { method: 'PATCH', body: { category: e.target.value } });
+  toast(r.message, 'success'); load();
+});
+document.getElementById('rows').addEventListener('click', async e => {
+  const b = e.target.closest('.del'); if (!b || !confirm('Delete this transaction?')) return;
+  const tr = b.closest('tr'); await api('/api/transactions/' + tr.dataset.id, { method: 'DELETE' });
+  tr.style.transition = '.4s'; tr.style.opacity = 0; tr.style.transform = 'translateX(40px)'; setTimeout(load, 400); toast('Deleted', 'info');
+});
+document.getElementById('catChips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return;
+  document.querySelectorAll('#catChips .chip').forEach(x => x.classList.remove('active')); c.classList.add('active'); cat = c.dataset.cat; load(); });
+let t; const onQ = v => { clearTimeout(t); t = setTimeout(() => { q = v; load(); }, 250); };
+document.getElementById('q').addEventListener('input', e => onQ(e.target.value));
+document.getElementById('globalSearch').addEventListener('input', e => onQ(e.target.value));
+document.getElementById('importFile').addEventListener('change', async e => {
+  const fd = new FormData(); fd.append('file', e.target.files[0]);
+  const r = await api('/api/import', { body: fd }); toast(`Imported ${r.imported} rows (AI categorised)`, 'success'); load();
+});
+window.onTxAdded = () => load();
+load();
+</script>
+{% endblock %}
